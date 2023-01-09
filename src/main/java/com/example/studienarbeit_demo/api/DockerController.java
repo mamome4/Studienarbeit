@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+
 
 @RequestMapping("api/v1/startContainer")
 @RestController
@@ -19,7 +21,7 @@ public class DockerController {
     }
 
     @GetMapping
-    public void startDockerContainer() {
+    public void startDockerContainer() throws IOException {
         dockerService.createDockerContainer();
     }
 }
