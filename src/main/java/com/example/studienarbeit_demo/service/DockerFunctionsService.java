@@ -1,17 +1,20 @@
 package com.example.studienarbeit_demo.service;
 
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.command.CreateContainerResponse;
-import com.github.dockerjava.api.command.WaitContainerResultCallback;
-import com.github.dockerjava.api.model.Bind;
-import com.github.dockerjava.api.model.Binds;
-import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.api.async.ResultCallback;
+import com.github.dockerjava.api.command.*;
+import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
+import com.github.dockerjava.core.command.ExecStartResultCallback;
+import com.github.dockerjava.core.command.LogContainerResultCallback;
+import com.github.dockerjava.core.exec.LogContainerCmdExec;
+import com.github.dockerjava.core.exec.LogSwarmObjectExec;
+import com.github.dockerjava.core.exec.WaitContainerCmdExec;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.springframework.http.MediaType;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -21,7 +24,10 @@ import java.net.MalformedURLException;
 import java.net.URI;
 
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class DockerFunctionsService {
@@ -85,62 +91,68 @@ public class DockerFunctionsService {
                 throw new RuntimeException(e);
             }
         }
-        dockerClient.killContainerCmd(container.getId()).exec();
+        dockerClient.removeContainerCmd(container.getId()).exec();
     }
 
-    public void createDockerContainerHttpRequest() {
-        URL url = null;
-        try {
-            url = new URL("http://localhost:2375/containers/create");
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+    public String createPythonContainer(
+            @Nullable String image,
+            String projectPath,
+            Boolean stdout,
+            Boolean stderr,
+            Boolean disableNetwork,
+            String testsPath
+            ) {
+        projectPath = "C:/Users/Maximilian Meier/PycharmProjects/StudienarbeitDemo";
+        if(image == null) {
+            image = "python:latest";
         }
-        String jsonInputString = "{\n" +
-                "    \"AttachStdout\": true,\n" +
-                "    \"AttachStderr\": true,\n" +
-                "    \"Tty\": false,\n" +
-                "    \"Image\": \"maven:latest\",\n" +
-                "    \"WorkingDir\": \"/usr/src/mymaven\",\n" +
-                "    \"NetworkDisabled\": false,\n" +
-                "    \"HostConfig\": {\n" +
-                "        \"Binds\": [\n" +
-                "            \"C:/Users/Maximilian Meier/IdeaProjects/Studienarbeit_Demo/EvaluationContent/CucumberTest/:/usr/src/mymaven\",\n" +
-                "            \"C:/Users/Maximilian Meier/.m2:/root/.m2\"\n" +
-                "        ]\n" +
-                "    },\n" +
-                "    \"Cmd\": [\n" +
-                "        \"mvn\",\n" +
-                "        \"test\"\n" +
-                "    ]\n" +
-                "}";
-        HttpURLConnection con = null;
-        try {
-            con = (HttpURLConnection)url.openConnection();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        con.setRequestProperty("Content-Type", "application/json");
-        con.setDoOutput(true);
-        try(OutputStream os = con.getOutputStream()) {
-            byte[] input = jsonInputString.getBytes("utf-8");
-            os.write(input, 0, input.length);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
 
-        try(BufferedReader br = new BufferedReader(
-                new InputStreamReader(con.getInputStream(), "utf-8"))) {
-            StringBuilder response = new StringBuilder();
-            String responseLine = null;
-            while ((responseLine = br.readLine()) != null) {
-                response.append(responseLine.trim());
-            }
-            System.out.println(response.toString());
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
+        HostConfig hostConfig = HostConfig.newHostConfig()
+                .withBinds(new Bind(projectPath, new Volume("/usr/src/app")));
+
+        CreateContainerResponse container = dockerClient.createContainerCmd(image)
+                .withAttachStdout(true)
+                .withAttachStderr(true)
+                .withTty(false)
+                .withWorkingDir("/usr/src/app")
+                .withNetworkDisabled(false)
+                .withHostConfig(hostConfig)
+                .withCmd("python", "-m", "unittest", "discover", testsPath)
+                .exec();
+        System.out.println(container.getId());
+
+        dockerClient.startContainerCmd(container.getId()).exec();
+
+        var statusCode = dockerClient.waitContainerCmd(container.getId())
+                .exec(new WaitContainerResultCallback())
+                .awaitStatusCode();
+        System.out.println(statusCode);
+
+        LogContainerCallback logContainerCallback = new LogContainerCallback();
+        LogContainerCmd logContainerCmd = dockerClient.logContainerCmd(container.getId())
+                .withStdOut(true)
+                .withStdErr(true)
+                .withTimestamps(true);
+
+        logContainerCmd.exec(logContainerCallback);
+        try {
+            logContainerCallback.awaitCompletion(3, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        System.out.println(logContainerCallback.toString());
+        dockerClient.removeContainerCmd(container.getId()).exec();
 
+        return logContainerCallback.toString();
+    }
+
+    public void pullImage(String image) {
+        PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
+        try {
+            pullImageCmd.exec(new PullImageResultCallback()).awaitCompletion();
+        } catch (Exception e) {
+            System.out.println(e.toString());
+        }
     }
 }
