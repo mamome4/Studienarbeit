@@ -38,15 +38,7 @@ public class DockerFunctionsService {
             .getInstance(config)
             .build();
 
-    public static void printResults(Process process) throws IOException {
-        BufferedReader reder = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String line = "";
-        while ((line = reder.readLine()) != null) {
-            System.out.println((line));
-        }
-    }
-
-    public void createDockerContainer() {
+    public String createJavaContainer() {
         /*UUID containerID = UUID.randomUUID();
         String path = "\"C:/Users/Maximilian Meier/IdeaProjects/CucumberTest\"";
         String startCommand = String.format("docker run --name %s -v %s:/usr/src/mymaven -v \"C:/Users/Maximilian Meier/.m2\":/root/.m2 -w /usr/src/mymaven maven:latest mvn test", containerID, path);
@@ -76,37 +68,61 @@ public class DockerFunctionsService {
                 .withNetworkDisabled(false)
                 .withHostConfig(hostConfig)
                 .withCmd("mvn", "test").exec();
-        System.out.println(container.getId());
         dockerClient.startContainerCmd(container.getId()).exec();
+
         var statusCode = dockerClient.waitContainerCmd(container.getId())
                 .exec(new WaitContainerResultCallback())
                 .awaitStatusCode();
-        System.out.println(statusCode);
-        if(statusCode == 0){
-            try {
-                Runtime.getRuntime().exec(new String[]{"cmd", "/c",
-                        String.format("docker cp %s:/usr/src/mymaven/target/surefire-reports/ \"C:/Users/Maximilian Meier/IdeaProjects/Studienarbeit_Demo/EvaluationContent\"", container.getId())});
-                System.out.println("worked");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
+
+        String loggedCMD = logImageCMD(container.getId());
         dockerClient.removeContainerCmd(container.getId()).exec();
+
+        return loggedCMD;
     }
 
     public String createPythonContainer(
-            @Nullable String image,
             String projectPath,
             Boolean stdout,
             Boolean stderr,
             Boolean disableNetwork,
             String testsPath
             ) {
-        projectPath = "C:/Users/Maximilian Meier/PycharmProjects/StudienarbeitDemo";
-        if(image == null) {
-            image = "python:latest";
-        }
-        PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
+        HostConfig hostConfig = HostConfig.newHostConfig()
+                .withBinds(new Bind(projectPath, new Volume("/usr/src/app")));
+
+        CreateContainerResponse container = dockerClient.createContainerCmd("python:latest")
+                .withAttachStdout(true)
+                .withAttachStderr(true)
+                .withTty(false)
+                .withWorkingDir("/usr/src/app")
+                .withNetworkDisabled(false)
+                .withHostConfig(hostConfig)
+                .withCmd("python", "-m", "unittest", "discover", testsPath)
+                .exec();
+
+        dockerClient.startContainerCmd(container.getId()).exec();
+
+        var statusCode = dockerClient.waitContainerCmd(container.getId())
+                .exec(new WaitContainerResultCallback())
+                .awaitStatusCode();
+        System.out.println(statusCode);
+
+        String loggedCMD = logImageCMD(container.getId());
+        dockerClient.removeContainerCmd(container.getId()).exec();
+
+        return logContainerCallback.toString();
+    }
+
+    public String createPythonContainer(
+            String image,
+            Boolean pullImage,
+            String projectPath,
+            Boolean stdout,
+            Boolean stderr,
+            Boolean disableNetwork,
+            String testsPath
+    ) {
+        if(pullImage) {PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);}
 
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(new Bind(projectPath, new Volume("/usr/src/app")));
@@ -120,17 +136,22 @@ public class DockerFunctionsService {
                 .withHostConfig(hostConfig)
                 .withCmd("python", "-m", "unittest", "discover", testsPath)
                 .exec();
-        System.out.println(container.getId());
 
         dockerClient.startContainerCmd(container.getId()).exec();
 
         var statusCode = dockerClient.waitContainerCmd(container.getId())
                 .exec(new WaitContainerResultCallback())
                 .awaitStatusCode();
-        System.out.println(statusCode);
 
+        String loggedCMD = logImageCMD(container.getId());
+        dockerClient.removeContainerCmd(container.getId()).exec();
+
+        return loggedCMD;
+    }
+
+    private String logImageCMD(String dockerID) {
         LogContainerCallback logContainerCallback = new LogContainerCallback();
-        LogContainerCmd logContainerCmd = dockerClient.logContainerCmd(container.getId())
+        LogContainerCmd logContainerCmd = dockerClient.logContainerCmd(dockerID)
                 .withStdOut(true)
                 .withStdErr(true)
                 .withTimestamps(true);
@@ -141,13 +162,11 @@ public class DockerFunctionsService {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        System.out.println(logContainerCallback.toString());
-        dockerClient.removeContainerCmd(container.getId()).exec();
 
         return logContainerCallback.toString();
     }
 
-    public void pullImage(String image) {
+    private void pullImage(String image) {
         PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
         try {
             pullImageCmd.exec(new PullImageResultCallback()).awaitCompletion();
