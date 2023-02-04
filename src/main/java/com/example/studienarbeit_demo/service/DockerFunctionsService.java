@@ -1,32 +1,15 @@
 package com.example.studienarbeit_demo.service;
 
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.*;
-import com.github.dockerjava.api.model.*;
+import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
-import com.github.dockerjava.core.command.ExecStartResultCallback;
-import com.github.dockerjava.core.command.LogContainerResultCallback;
-import com.github.dockerjava.core.exec.LogContainerCmdExec;
-import com.github.dockerjava.core.exec.LogSwarmObjectExec;
-import com.github.dockerjava.core.exec.WaitContainerCmdExec;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.springframework.http.MediaType;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
-import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URI;
-
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -38,34 +21,21 @@ public class DockerFunctionsService {
             .getInstance(config)
             .build();
 
-    public String createJavaContainer() {
-        /*UUID containerID = UUID.randomUUID();
-        String path = "\"C:/Users/Maximilian Meier/IdeaProjects/CucumberTest\"";
-        String startCommand = String.format("docker run --name %s -v %s:/usr/src/mymaven -v \"C:/Users/Maximilian Meier/.m2\":/root/.m2 -w /usr/src/mymaven maven:latest mvn test", containerID, path);
-        String copyCommand = String.format("docker cp %s:/usr/src/mymaven/target/surefire-reports/ \"C:/Users/Maximilian Meier/IdeaProjects/Studienarbeit_Demo/EvaluationContent\"", containerID);
-        String removeCommand = String.format("docker rm %s", containerID);
-        System.out.println(startCommand);
-        try {
-            Process process = Runtime.getRuntime().exec(new String[]{"cmd", "/c", startCommand});
-            printResults(process);
-            Runtime.getRuntime().exec(new String[]{"cmd", "/c", copyCommand});
-            System.out.println(copyCommand);
-            Runtime.getRuntime().exec(new String[]{"cmd", "/c", removeCommand});
-            System.out.println("Evalutation Finished");
-        } catch (IOException ex) {
-            System.out.println(ex.toString());
-        }*/
+    public String createJavaContainer(
+            String projectPath,
+            String m2Path,
+            Boolean disableNetwork
+    ) {
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(
-                        new Bind("C:/Users/Maximilian Meier/IdeaProjects/Studienarbeit_Demo/EvaluationContent/CucumberTest/", new Volume("/usr/src/mymaven")),
-                        new Bind("C:/Users/Maximilian Meier/.m2", new Volume("/root/.m2")));
+                        new Bind(projectPath, new Volume("/usr/src/mymaven")),
+                        new Bind(m2Path, new Volume("/root/.m2")));
 
         CreateContainerResponse container = dockerClient.createContainerCmd("maven:latest")
                 .withAttachStdout(true)
                 .withAttachStderr(true)
-                .withTty(false)
                 .withWorkingDir("/usr/src/mymaven")
-                .withNetworkDisabled(false)
+                .withNetworkDisabled(disableNetwork)
                 .withHostConfig(hostConfig)
                 .withCmd("mvn", "test").exec();
         dockerClient.startContainerCmd(container.getId()).exec();
@@ -75,15 +45,47 @@ public class DockerFunctionsService {
                 .awaitStatusCode();
 
         String loggedCMD = logImageCMD(container.getId());
-        dockerClient.removeContainerCmd(container.getId()).exec();
+
+        if(statusCode == 0) { dockerClient.removeContainerCmd(container.getId()).exec(); }
+
+        return loggedCMD;
+    }
+
+    public String createJavaContainer(
+            String image,
+            Boolean pullImage,
+            String projectPath,
+            String m2Path,
+            Boolean disableNetwork
+    ) {
+        if(pullImage) { dockerClient.pullImageCmd(image); }
+        HostConfig hostConfig = HostConfig.newHostConfig()
+                .withBinds(
+                        new Bind(projectPath, new Volume("/usr/src/mymaven")),
+                        new Bind(m2Path, new Volume("/root/.m2")));
+
+        CreateContainerResponse container = dockerClient.createContainerCmd("maven:latest")
+                .withAttachStdout(true)
+                .withAttachStderr(true)
+                .withWorkingDir("/usr/src/mymaven")
+                .withNetworkDisabled(disableNetwork)
+                .withHostConfig(hostConfig)
+                .withCmd("mvn", "test").exec();
+        dockerClient.startContainerCmd(container.getId()).exec();
+
+        var statusCode = dockerClient.waitContainerCmd(container.getId())
+                .exec(new WaitContainerResultCallback())
+                .awaitStatusCode();
+
+        String loggedCMD = logImageCMD(container.getId());
+
+        if(statusCode == 0) { dockerClient.removeContainerCmd(container.getId()).exec(); }
 
         return loggedCMD;
     }
 
     public String createPythonContainer(
             String projectPath,
-            Boolean stdout,
-            Boolean stderr,
             Boolean disableNetwork,
             String testsPath
             ) {
@@ -93,9 +95,8 @@ public class DockerFunctionsService {
         CreateContainerResponse container = dockerClient.createContainerCmd("python:latest")
                 .withAttachStdout(true)
                 .withAttachStderr(true)
-                .withTty(false)
                 .withWorkingDir("/usr/src/app")
-                .withNetworkDisabled(false)
+                .withNetworkDisabled(disableNetwork)
                 .withHostConfig(hostConfig)
                 .withCmd("python", "-m", "unittest", "discover", testsPath)
                 .exec();
@@ -110,19 +111,28 @@ public class DockerFunctionsService {
         String loggedCMD = logImageCMD(container.getId());
         dockerClient.removeContainerCmd(container.getId()).exec();
 
-        return logContainerCallback.toString();
+        return loggedCMD;
     }
 
+    /**
+    * Creates Python container with the option to specify the image and if the image is
+    * supposed to be pulled from Docker Hub. If an image is pulled said image should be
+    * a Python 2.0+ image.
+    *
+    * @Param String image           specifies the image to be pulled for example: "python:latest" or "python:3.9"
+    * @Param Boolean pullImage      if set the function will pull the specified image
+    * @Param String projectPath     absolut or relativ path to the project that should be evaluated
+    * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
+    * @Param String testPath        relativ path of the directory containing the unittests within the project, for example: "./tests_unittests"
+    */
     public String createPythonContainer(
             String image,
             Boolean pullImage,
             String projectPath,
-            Boolean stdout,
-            Boolean stderr,
             Boolean disableNetwork,
             String testsPath
     ) {
-        if(pullImage) {PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);}
+        if(pullImage) { dockerClient.pullImageCmd(image);}
 
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(new Bind(projectPath, new Volume("/usr/src/app")));
@@ -130,18 +140,17 @@ public class DockerFunctionsService {
         CreateContainerResponse container = dockerClient.createContainerCmd(image)
                 .withAttachStdout(true)
                 .withAttachStderr(true)
-                .withTty(false)
                 .withWorkingDir("/usr/src/app")
-                .withNetworkDisabled(false)
+                .withNetworkDisabled(disableNetwork)
                 .withHostConfig(hostConfig)
                 .withCmd("python", "-m", "unittest", "discover", testsPath)
                 .exec();
 
         dockerClient.startContainerCmd(container.getId()).exec();
 
-        var statusCode = dockerClient.waitContainerCmd(container.getId())
-                .exec(new WaitContainerResultCallback())
-                .awaitStatusCode();
+        dockerClient.waitContainerCmd(container.getId())
+            .exec(new WaitContainerResultCallback())
+            .awaitStatusCode();
 
         String loggedCMD = logImageCMD(container.getId());
         dockerClient.removeContainerCmd(container.getId()).exec();
@@ -166,12 +175,8 @@ public class DockerFunctionsService {
         return logContainerCallback.toString();
     }
 
-    private void pullImage(String image) {
+    private void pullImage(String image) throws Exception{
         PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
-        try {
-            pullImageCmd.exec(new PullImageResultCallback()).awaitCompletion();
-        } catch (Exception e) {
-            System.out.println(e.toString());
-        }
+        pullImageCmd.exec(new PullImageResultCallback()).awaitCompletion();
     }
 }
