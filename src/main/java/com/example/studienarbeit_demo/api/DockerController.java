@@ -23,7 +23,7 @@ public class DockerController {
     @GetMapping(path = "java")
     public String startDockerContainer() throws IOException {
         return dockerService.createJavaContainer(
-                "C:/Users/Maximilian Meier/IdeaProjects/Studienarbeit_Demo/EvaluationContent/CucumberTest/",
+                "C:/Users/Maximilian Meier/IdeaProjects/CucumberTest",
                 "C:/Users/Maximilian Meier/.m2",
                 false);
     }

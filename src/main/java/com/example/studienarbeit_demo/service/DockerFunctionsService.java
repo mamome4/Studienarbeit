@@ -21,6 +21,15 @@ public class DockerFunctionsService {
             .getInstance(config)
             .build();
 
+    /**
+    * Creates a Java Maven container to run Cucumber Tests in with the maven image marked "latest".
+    * This function does not pull an image.
+    * Therefor there sould already be an image downloaded with the "latest" tag for this function to execute correctly.
+    *
+    * @Param String projectPath     absolut or relativ path to the project that should be evaluated
+    * @Param String m2Path          path to local m2 dependecy repository to prevent the container from having to download dependencies each time
+    * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
+    */
     public String createJavaContainer(
             String projectPath,
             String m2Path,
@@ -51,6 +60,17 @@ public class DockerFunctionsService {
         return loggedCMD;
     }
 
+    /**
+    * Creates Java Maven container with the option to specify the image and if the image is
+    * supposed to be pulled from Docker Hub. If an image is pulled said image has to be
+    * a Maven image.
+    *
+    * @Param String image           specifies the image to be pulled for example: "maven:latest"
+    * @Param Boolean pullImage      if set the function will pull the specified image
+    * @Param String projectPath     absolut or relativ path to the project that should be evaluated
+    * @Param String m2Path          path to local m2 dependecy repository to prevent the container from having to download dependencies each time
+    * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
+    */
     public String createJavaContainer(
             String image,
             Boolean pullImage,
@@ -84,6 +104,15 @@ public class DockerFunctionsService {
         return loggedCMD;
     }
 
+    /**
+    * Creates Python container to run unittests in with the python image marked "latest". This function does not pull an image.
+    * Therefor there sould already be an image downloaded with the "latest" tag for this function to execute correctly.
+    * Note that unittests must adhear to python unittest naming conventions.
+    *
+    * @Param String projectPath     absolut or relativ path to the project that should be evaluated
+    * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
+    * @Param String testPath        relativ path of the directory containing the unittests within the project, for example: "./tests_unittests"
+    */
     public String createPythonContainer(
             String projectPath,
             Boolean disableNetwork,
@@ -118,6 +147,7 @@ public class DockerFunctionsService {
     * Creates Python container with the option to specify the image and if the image is
     * supposed to be pulled from Docker Hub. If an image is pulled said image should be
     * a Python 2.0+ image.
+    * Note that unittests must adhear to python unittest naming conventions.
     *
     * @Param String image           specifies the image to be pulled for example: "python:latest" or "python:3.9"
     * @Param Boolean pullImage      if set the function will pull the specified image
