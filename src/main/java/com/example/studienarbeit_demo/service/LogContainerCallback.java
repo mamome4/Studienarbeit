@@ -8,6 +8,7 @@ import java.util.List;
 
 /**
  * @author Kanstantsin Shautsou
+ * https://github.com/docker-java/docker-java/blob/a135d21fb308014adfe3ad184557354689f528b1/docker-java/src/test/java/com/github/dockerjava/utils/LogContainerTestCallback.java
  */
 public class LogContainerCallback extends ResultCallback.Adapter<Frame> {
     protected final StringBuffer log = new StringBuffer();

@@ -21,19 +21,19 @@ public class DockerController {
     }
 
     @GetMapping(path = "java")
-    public String startDockerContainer() throws IOException {
+    public String startDockerContainer(String projectPath, String m2Path, Boolean disableNetwork) throws IOException {
         return dockerService.createJavaContainer(
-                "C:/Users/Maximilian Meier/IdeaProjects/CucumberTest",
-                "C:/Users/Maximilian Meier/.m2",
-                false);
+                projectPath,
+                m2Path,
+                disableNetwork);
     }
 
     @GetMapping(path = "python")
-    public String startPythonContainer() throws IOException {
-        return dockerService.createPythonContainer("python:latest",
-                true,
-                "C:/Users/Maximilian Meier/PycharmProjects/StudienarbeitDemo",
-                false,
-                "./tests_unittests");
+    public String startPythonContainer(String image, Boolean pullImage, String projectPath, Boolean disableNetwork, String testPath) throws IOException {
+        return dockerService.createPythonContainer(image,
+                pullImage,
+                projectPath,
+                disableNetwork,
+                testPath);
     }
 }
