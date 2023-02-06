@@ -151,7 +151,7 @@ public class DockerFunctionsService {
     /**
     * Creates Python container with the option to specify the image and if the image is
     * supposed to be pulled from Docker Hub. If an image is pulled said image should be
-    * a Python 2.0+ image.
+    * a Python 2.7+ image.
     * Note that unittests must adhear to python unittest naming conventions.
     *
     * @Param String image           specifies the image to be pulled for example: "python:latest" or "python:3.9"
