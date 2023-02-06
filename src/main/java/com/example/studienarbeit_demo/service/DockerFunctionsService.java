@@ -29,6 +29,8 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param String m2Path          path to local m2 dependecy repository to prevent the container from having to download dependencies each time
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
+    * @return String of the terminal output from inside the container.
+    * Testfiles like surefire-reports can be found in the project directory where they would normaly be created.
     */
     public String createJavaContainer(
             String projectPath,
@@ -70,6 +72,8 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param String m2Path          path to local m2 dependecy repository to prevent the container from having to download dependencies each time
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
+    * @return String of the terminal output from inside the container.
+    * Testfiles like surefire-reports can be found in the project directory where they would normaly be created.
     */
     public String createJavaContainer(
             String image,
@@ -112,6 +116,7 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
     * @Param String testPath        relativ path of the directory containing the unittests within the project, for example: "./tests_unittests"
+    * @return String of the terminal output from inside the container
     */
     public String createPythonContainer(
             String projectPath,
@@ -154,6 +159,7 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
     * @Param String testPath        relativ path of the directory containing the unittests within the project, for example: "./tests_unittests"
+    * @return String of the terminal output from inside the container
     */
     public String createPythonContainer(
             String image,
