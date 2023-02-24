@@ -29,13 +29,15 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param String m2Path          path to local m2 dependecy repository to prevent the container from having to download dependencies each time
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
-    * @return String of the terminal output from inside the container.
+    * @Param int timeoutMin         sets the timeout for a docker container in minutes, after the timeout the container is stopped and an error message is returned
+    * @return String of the terminal output from inside the container
     * Testfiles like surefire-reports can be found in the project directory where they would normaly be created.
     */
     public String createJavaContainer(
             String projectPath,
             String m2Path,
-            Boolean disableNetwork
+            boolean disableNetwork,
+            int timeoutMin
     ) {
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(
@@ -51,9 +53,17 @@ public class DockerFunctionsService {
                 .withCmd("mvn", "test").exec();
         dockerClient.startContainerCmd(container.getId()).exec();
 
-        var statusCode = dockerClient.waitContainerCmd(container.getId())
-                .exec(new WaitContainerResultCallback())
-                .awaitStatusCode();
+        int statusCode;
+        try {
+            statusCode = dockerClient.waitContainerCmd(container.getId())
+                    .exec(new WaitContainerResultCallback())
+                    .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
+
+        } catch (Exception e) {
+            dockerClient.killContainerCmd(container.getId()).exec();
+            return e.toString();
+        }
+
 
         String loggedCMD = logImageCMD(container.getId());
 
@@ -72,17 +82,26 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param String m2Path          path to local m2 dependecy repository to prevent the container from having to download dependencies each time
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
-    * @return String of the terminal output from inside the container.
+    * @Param int timeoutMin         sets the timeout for a docker container in minutes, after the timeout the container is stopped and an error message is returned
+    * @return String of the terminal output from inside the container
     * Testfiles like surefire-reports can be found in the project directory where they would normaly be created.
     */
     public String createJavaContainer(
             String image,
-            Boolean pullImage,
+            boolean pullImage,
             String projectPath,
             String m2Path,
-            Boolean disableNetwork
+            boolean disableNetwork,
+            int timeoutMin
     ) {
-        if(pullImage) { dockerClient.pullImageCmd(image); }
+        if(pullImage) {
+            try {
+                pullImage(image);
+            } catch (Exception e) {
+                return e.toString();
+            }
+        }
+
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(
                         new Bind(projectPath, new Volume("/usr/src/mymaven")),
@@ -97,9 +116,16 @@ public class DockerFunctionsService {
                 .withCmd("mvn", "test").exec();
         dockerClient.startContainerCmd(container.getId()).exec();
 
-        var statusCode = dockerClient.waitContainerCmd(container.getId())
-                .exec(new WaitContainerResultCallback())
-                .awaitStatusCode();
+        int statusCode;
+        try {
+            statusCode = dockerClient.waitContainerCmd(container.getId())
+                    .exec(new WaitContainerResultCallback())
+                    .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
+
+        } catch (Exception e) {
+            dockerClient.killContainerCmd(container.getId()).exec();
+            return e.toString();
+        }
 
         String loggedCMD = logImageCMD(container.getId());
 
@@ -116,12 +142,14 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
     * @Param String testPath        relativ path of the directory containing the unittests within the project, for example: "./tests_unittests"
+    * @Param int timeoutMin         sets the timeout for a docker container in minutes, after the timeout the container is stopped and an error message is returned
     * @return String of the terminal output from inside the container
     */
     public String createPythonContainer(
             String projectPath,
-            Boolean disableNetwork,
-            String testsPath
+            boolean disableNetwork,
+            String testsPath,
+            int timeoutMin
             ) {
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(new Bind(projectPath, new Volume("/usr/src/app")));
@@ -134,13 +162,17 @@ public class DockerFunctionsService {
                 .withHostConfig(hostConfig)
                 .withCmd("python", "-m", "unittest", "discover", testsPath)
                 .exec();
-
         dockerClient.startContainerCmd(container.getId()).exec();
 
-        var statusCode = dockerClient.waitContainerCmd(container.getId())
-                .exec(new WaitContainerResultCallback())
-                .awaitStatusCode();
-        System.out.println(statusCode);
+        try {
+            dockerClient.waitContainerCmd(container.getId())
+                    .exec(new WaitContainerResultCallback())
+                    .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
+
+        } catch (Exception e) {
+            dockerClient.killContainerCmd(container.getId()).exec();
+            return e.toString();
+        }
 
         String loggedCMD = logImageCMD(container.getId());
         dockerClient.removeContainerCmd(container.getId()).exec();
@@ -159,16 +191,24 @@ public class DockerFunctionsService {
     * @Param String projectPath     absolut or relativ path to the project that should be evaluated
     * @Param Boolean disableNetwork if set the network of the Docker container will be disabled
     * @Param String testPath        relativ path of the directory containing the unittests within the project, for example: "./tests_unittests"
+    * @Param int timeoutMin         sets the timeout for a docker container in minutes, after the timeout the container is stopped and an error message is returned
     * @return String of the terminal output from inside the container
     */
     public String createPythonContainer(
             String image,
-            Boolean pullImage,
+            boolean pullImage,
             String projectPath,
-            Boolean disableNetwork,
-            String testsPath
+            boolean disableNetwork,
+            String testsPath,
+            int timeoutMin
     ) {
-        if(pullImage) { dockerClient.pullImageCmd(image);}
+        if(pullImage) {
+            try {
+                pullImage(image);
+            } catch (Exception e) {
+                return e.toString();
+            }
+        }
 
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(new Bind(projectPath, new Volume("/usr/src/app")));
@@ -181,12 +221,17 @@ public class DockerFunctionsService {
                 .withHostConfig(hostConfig)
                 .withCmd("python", "-m", "unittest", "discover", testsPath)
                 .exec();
-
         dockerClient.startContainerCmd(container.getId()).exec();
 
-        dockerClient.waitContainerCmd(container.getId())
-            .exec(new WaitContainerResultCallback())
-            .awaitStatusCode();
+        try {
+            dockerClient.waitContainerCmd(container.getId())
+                    .exec(new WaitContainerResultCallback())
+                    .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
+
+        } catch (Exception e) {
+            dockerClient.killContainerCmd(container.getId()).exec();
+            return e.toString();
+        }
 
         String loggedCMD = logImageCMD(container.getId());
         dockerClient.removeContainerCmd(container.getId()).exec();

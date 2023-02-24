@@ -6,8 +6,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-
 
 @RequestMapping("api/v1/startContainer")
 @RestController
@@ -21,19 +19,39 @@ public class DockerController {
     }
 
     @GetMapping(path = "java")
-    public String startDockerContainer(String projectPath, String m2Path, Boolean disableNetwork) throws IOException {
+    public String startJavaContainer(String projectPath, String m2Path, boolean disableNetwork, int timeoutMin) {
         return dockerService.createJavaContainer(
                 projectPath,
                 m2Path,
-                disableNetwork);
+                disableNetwork,
+                timeoutMin);
     }
-
+    @GetMapping(path = "javaPull")
+    public String startJavaPullContainer(String image, boolean pullImage, String projectPath, String m2Path, boolean disableNetwork, int timeoutMin) {
+        return dockerService.createJavaContainer(
+                image,
+                pullImage,
+                projectPath,
+                m2Path,
+                disableNetwork,
+                timeoutMin);
+    }
     @GetMapping(path = "python")
-    public String startPythonContainer(String image, Boolean pullImage, String projectPath, Boolean disableNetwork, String testPath) throws IOException {
-        return dockerService.createPythonContainer(image,
+    public String startPythonContainer(String projectPath, boolean disableNetwork, String testPath, int timeoutMin) {
+        return dockerService.createPythonContainer(
+                projectPath,
+                disableNetwork,
+                testPath,
+                timeoutMin);
+    }
+    @GetMapping(path = "pythonPull")
+    public String startPythonPullContainer(String image, boolean pullImage, String projectPath, boolean disableNetwork, String testPath, int timeoutMin) {
+        return dockerService.createPythonContainer(
+                image,
                 pullImage,
                 projectPath,
                 disableNetwork,
-                testPath);
+                testPath,
+                timeoutMin);
     }
 }
