@@ -61,7 +61,7 @@ public class DockerFunctionsService {
 
         } catch (Exception e) {
             dockerClient.killContainerCmd(container.getId()).exec();
-            return e.toString();
+            return "Timeout: Docker Container took too long to respond and was stopped as a result";
         }
 
 
@@ -98,7 +98,8 @@ public class DockerFunctionsService {
             try {
                 pullImage(image);
             } catch (Exception e) {
-                return e.toString();
+                System.out.println(e.toString());
+                return "Failed to pull Docker image";
             }
         }
 
@@ -124,7 +125,7 @@ public class DockerFunctionsService {
 
         } catch (Exception e) {
             dockerClient.killContainerCmd(container.getId()).exec();
-            return e.toString();
+            return "Timeout: Docker Container took too long to respond and was stopped as a result";
         }
 
         String loggedCMD = logImageCMD(container.getId());
@@ -171,7 +172,7 @@ public class DockerFunctionsService {
 
         } catch (Exception e) {
             dockerClient.killContainerCmd(container.getId()).exec();
-            return e.toString();
+            return "Timeout: Docker Container took too long to respond and was stopped as a result";
         }
 
         String loggedCMD = logImageCMD(container.getId());
@@ -206,7 +207,8 @@ public class DockerFunctionsService {
             try {
                 pullImage(image);
             } catch (Exception e) {
-                return e.toString();
+                System.out.println(e);
+                return "Failed to pull Docker image";
             }
         }
 
@@ -230,7 +232,7 @@ public class DockerFunctionsService {
 
         } catch (Exception e) {
             dockerClient.killContainerCmd(container.getId()).exec();
-            return e.toString();
+            return "Timeout: Docker Container took too long to respond and was stopped as a result";
         }
 
         String loggedCMD = logImageCMD(container.getId());
