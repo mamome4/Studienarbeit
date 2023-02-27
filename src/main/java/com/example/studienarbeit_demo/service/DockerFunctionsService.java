@@ -98,7 +98,6 @@ public class DockerFunctionsService {
             try {
                 pullImage(image);
             } catch (Exception e) {
-                System.out.println(e.toString());
                 return "Failed to pull Docker image";
             }
         }
@@ -207,7 +206,6 @@ public class DockerFunctionsService {
             try {
                 pullImage(image);
             } catch (Exception e) {
-                System.out.println(e);
                 return "Failed to pull Docker image";
             }
         }
