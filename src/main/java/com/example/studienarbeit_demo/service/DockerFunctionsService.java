@@ -2,18 +2,22 @@ package com.example.studienarbeit_demo.service;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.*;
+import com.github.dockerjava.api.exception.DockerClientException;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class DockerFunctionsService {
+    public static final Logger logger = LoggerFactory.getLogger(DockerFunctionsService.class);
     DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
             .withDockerHost("tcp://localhost:2375")
             .build();
@@ -41,33 +45,33 @@ public class DockerFunctionsService {
     ) {
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(
-                        new Bind(projectPath, new Volume("/usr/src/mymaven")),
+                        new Bind(projectPath, new Volume("/usr/src/myproject")),
                         new Bind(m2Path, new Volume("/root/.m2")));
 
         CreateContainerResponse container = dockerClient.createContainerCmd("maven:latest")
                 .withAttachStdout(true)
                 .withAttachStderr(true)
-                .withWorkingDir("/usr/src/mymaven")
+                .withWorkingDir("/usr/src/myproject")
                 .withNetworkDisabled(disableNetwork)
                 .withHostConfig(hostConfig)
                 .withCmd("mvn", "test").exec();
-        dockerClient.startContainerCmd(container.getId()).exec();
+        String contianerId = container.getId();
+        dockerClient.startContainerCmd(contianerId).exec();
 
         int statusCode;
         try {
-            statusCode = dockerClient.waitContainerCmd(container.getId())
+            statusCode = dockerClient.waitContainerCmd(contianerId)
                     .exec(new WaitContainerResultCallback())
-                    .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
-
-        } catch (Exception e) {
-            dockerClient.killContainerCmd(container.getId()).exec();
-            return "Timeout: Docker Container took too long to respond and was stopped as a result";
+                    .awaitStatusCode(timeoutMin, TimeUnit.SECONDS);
+        } catch (DockerClientException e) {
+            dockerClient.killContainerCmd(contianerId).exec();
+            logger.error(e.getMessage() + " For container with ID:" + contianerId);
+            throw new RuntimeException(e);
         }
 
+        String loggedCMD = logImageCMD(contianerId);
 
-        String loggedCMD = logImageCMD(container.getId());
-
-        if(statusCode == 0) { dockerClient.removeContainerCmd(container.getId()).exec(); }
+        if(statusCode == 0) { dockerClient.removeContainerCmd(contianerId).exec(); }
 
         return loggedCMD;
     }
@@ -98,38 +102,40 @@ public class DockerFunctionsService {
             try {
                 pullImage(image);
             } catch (Exception e) {
-                return "Failed to pull Docker image";
+                throw new RuntimeException(e);
             }
         }
 
         HostConfig hostConfig = HostConfig.newHostConfig()
                 .withBinds(
-                        new Bind(projectPath, new Volume("/usr/src/mymaven")),
+                        new Bind(projectPath, new Volume("/usr/src/myproject")),
                         new Bind(m2Path, new Volume("/root/.m2")));
 
         CreateContainerResponse container = dockerClient.createContainerCmd("maven:latest")
                 .withAttachStdout(true)
                 .withAttachStderr(true)
-                .withWorkingDir("/usr/src/mymaven")
+                .withWorkingDir("/usr/src/myproject")
                 .withNetworkDisabled(disableNetwork)
                 .withHostConfig(hostConfig)
                 .withCmd("mvn", "test").exec();
-        dockerClient.startContainerCmd(container.getId()).exec();
+        String contianerId = container.getId();
+        dockerClient.startContainerCmd(contianerId).exec();
 
         int statusCode;
         try {
-            statusCode = dockerClient.waitContainerCmd(container.getId())
+            statusCode = dockerClient.waitContainerCmd(contianerId)
                     .exec(new WaitContainerResultCallback())
                     .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
 
-        } catch (Exception e) {
-            dockerClient.killContainerCmd(container.getId()).exec();
-            return "Timeout: Docker Container took too long to respond and was stopped as a result";
+        } catch (DockerClientException e) {
+            dockerClient.killContainerCmd(contianerId).exec();
+            logger.error(e.getMessage() + " For container with ID:" + contianerId);
+            throw new RuntimeException(e);
         }
 
-        String loggedCMD = logImageCMD(container.getId());
+        String loggedCMD = logImageCMD(contianerId);
 
-        if(statusCode == 0) { dockerClient.removeContainerCmd(container.getId()).exec(); }
+        if(statusCode == 0) { dockerClient.removeContainerCmd(contianerId).exec(); }
 
         return loggedCMD;
     }
@@ -162,20 +168,21 @@ public class DockerFunctionsService {
                 .withHostConfig(hostConfig)
                 .withCmd("python", "-m", "unittest", "discover", testsPath)
                 .exec();
-        dockerClient.startContainerCmd(container.getId()).exec();
+        String contianerId = container.getId();
+        dockerClient.startContainerCmd(contianerId).exec();
 
         try {
-            dockerClient.waitContainerCmd(container.getId())
+            dockerClient.waitContainerCmd(contianerId)
                     .exec(new WaitContainerResultCallback())
                     .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
-
-        } catch (Exception e) {
-            dockerClient.killContainerCmd(container.getId()).exec();
-            return "Timeout: Docker Container took too long to respond and was stopped as a result";
+        } catch (DockerClientException e) {
+            dockerClient.killContainerCmd(contianerId).exec();
+            logger.error(e.getMessage() + " For container with ID:" + contianerId);
+            throw new RuntimeException(e);
         }
 
-        String loggedCMD = logImageCMD(container.getId());
-        dockerClient.removeContainerCmd(container.getId()).exec();
+        String loggedCMD = logImageCMD(contianerId);
+        dockerClient.removeContainerCmd(contianerId).exec();
 
         return loggedCMD;
     }
@@ -206,7 +213,7 @@ public class DockerFunctionsService {
             try {
                 pullImage(image);
             } catch (Exception e) {
-                return "Failed to pull Docker image";
+                throw new RuntimeException(e);
             }
         }
 
@@ -221,20 +228,22 @@ public class DockerFunctionsService {
                 .withHostConfig(hostConfig)
                 .withCmd("python", "-m", "unittest", "discover", testsPath)
                 .exec();
-        dockerClient.startContainerCmd(container.getId()).exec();
+        String contianerId = container.getId();
+        dockerClient.startContainerCmd(contianerId).exec();
 
         try {
-            dockerClient.waitContainerCmd(container.getId())
+            dockerClient.waitContainerCmd(contianerId)
                     .exec(new WaitContainerResultCallback())
                     .awaitStatusCode(timeoutMin, TimeUnit.MINUTES);
 
-        } catch (Exception e) {
-            dockerClient.killContainerCmd(container.getId()).exec();
-            return "Timeout: Docker Container took too long to respond and was stopped as a result";
+        } catch (DockerClientException e) {
+            dockerClient.killContainerCmd(contianerId).exec();
+            logger.error(e.getMessage() + " For container with ID:" + contianerId);
+            throw new RuntimeException(e);
         }
 
-        String loggedCMD = logImageCMD(container.getId());
-        dockerClient.removeContainerCmd(container.getId()).exec();
+        String loggedCMD = logImageCMD(contianerId);
+        dockerClient.removeContainerCmd(contianerId).exec();
 
         return loggedCMD;
     }
